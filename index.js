@@ -5,13 +5,19 @@ const axios = require('axios');
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const app = express();
+app.use(express.json());
 
+// Armazenar usuários temporariamente
+const usuarios = new Map();
+
+// Comando /start
 bot.start(async (ctx) => {
   try {
-    // Apaga a mensagem anterior do usuário
     await ctx.deleteMessage();
 
-    // Cria o pagamento PIX via Mercado Pago
+    // Salva o ID do usuário no Map
+    usuarios.set(ctx.from.id, ctx.chat.id);
+
     const response = await axios.post(
       'https://api.mercadopago.com/checkout/preferences',
       {
@@ -32,7 +38,10 @@ bot.start(async (ctx) => {
           failure: 'https://t.me/EliteCreatorBot',
           pending: 'https://t.me/EliteCreatorBot'
         },
-        auto_return: 'approved'
+        auto_return: 'approved',
+        metadata: {
+          telegram_id: ctx.from.id
+        }
       },
       {
         headers: {
@@ -53,27 +62,37 @@ bot.start(async (ctx) => {
 });
 
 // Webhook do Mercado Pago
-app.use(express.json());
 app.post('/webhook', async (req, res) => {
-  const payment = req.body.data?.id;
+  const paymentId = req.body.data?.id;
 
-  if (payment) {
-    try {
-      const paymentInfo = await axios.get(`https://api.mercadopago.com/v1/payments/${payment}`, {
-        headers: { Authorization: `Bearer ${process.env.ACCESS_TOKEN_MP}` }
-      });
+  if (!paymentId) return res.sendStatus(400);
 
-      if (paymentInfo.data.status === 'approved') {
-        // Aqui você pode enviar a mensagem com o link do Google Drive
-        // Ex: notificar o Telegram ou salvar no banco
-        console.log('Pagamento aprovado');
+  try {
+    const paymentInfo = await axios.get(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+      headers: {
+        Authorization: `Bearer ${process.env.ACCESS_TOKEN_MP}`
       }
-    } catch (err) {
-      console.error('Erro no webhook:', err.message);
-    }
-  }
+    });
 
-  res.sendStatus(200);
+    const status = paymentInfo.data.status;
+    const telegramId = paymentInfo.data.metadata?.telegram_id;
+
+    if (status === 'approved' && telegramId) {
+      const chatId = usuarios.get(parseInt(telegramId));
+      if (chatId) {
+        await bot.telegram.sendMessage(
+          chatId,
+          '✅ Pagamento confirmado!\n\n🔗 Aqui está seu link de acesso:\nhttps://drive.google.com/drive/folders/1LK6fpV6EBucTNbGiI10vjDZWqHlkkP9b?usp=drive_link'
+        );
+        usuarios.delete(telegramId); // limpa o usuário da memória
+      }
+    }
+
+    res.sendStatus(200);
+  } catch (err) {
+    console.error('Erro no webhook:', err.message);
+    res.sendStatus(500);
+  }
 });
 
 // Iniciar servidor Express
@@ -81,5 +100,5 @@ app.listen(process.env.PORT || 4000, () => {
   console.log('Servidor rodando...');
 });
 
-// Iniciar bot
+// Iniciar o bot
 bot.launch();
