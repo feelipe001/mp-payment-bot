@@ -87,13 +87,12 @@ async function gerarPagamentoPix(chatId) {
     await bot.telegram.sendMessage(chatId,
 `🔑 Copie o código Pix abaixo e pague no app do seu banco:
 
-\
-\\`
+\`\`\`
 ${codigoPix}
-\\`
+\`\`\`
 
 🕐 Você tem 10 minutos para pagar. O acesso será enviado automaticamente após confirmação.`,
-      { parse_mode: 'MarkdownV2' });
+{ parse_mode: 'Markdown' });
 
     usuarios.set(paymentId, String(chatId));
   } catch (err) {
