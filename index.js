@@ -1,7 +1,8 @@
 require('dotenv').config();
+const { Telegraf, Markup } = require('telegraf');
 const express = require('express');
 const axios = require('axios');
-const { Telegraf } = require('telegraf');
+const fs = require('fs');
 
 const app = express();
 app.use(express.json());
@@ -13,85 +14,105 @@ bot.start(async (ctx) => {
   const chatId = ctx.chat.id;
   usuarios.set(chatId, chatId);
 
+  await ctx.replyWithPhoto(
+    { source: './imagem-ia.jpg' },
+    {
+      caption:
+        'Olha essa imagem aqui 👇\nParece capa de revista, né?',
+      ...Markup.inlineKeyboard([
+        [Markup.button.callback('👉 Eu quero fazer uma assim', 'quero_fazer')]
+      ])
+    }
+  );
+});
+
+bot.action('quero_fazer', async (ctx) => {
+  await ctx.reply(
+    'Isso foi feito com Inteligência Artificial.\nE qualquer pessoa consegue criar isso com o celular.',
+    Markup.inlineKeyboard([
+      [Markup.button.callback('👉 Me ensina agora', 'me_ensina')]
+    ])
+  );
+});
+
+bot.action('me_ensina', async (ctx) => {
+  await ctx.reply(
+    'Eu montei um curso direto ao ponto:\nAprenda a criar imagens incríveis com IA, do zero, sem precisar saber nada de design.',
+    Markup.inlineKeyboard([
+      [Markup.button.callback('👉 Ver como funciona', 'ver_como_funciona')]
+    ])
+  );
+});
+
+bot.action('ver_como_funciona', async (ctx) => {
+  await ctx.reply(
+    '📲 Acesso imediato\n💡 Passo a passo fácil\n🔥 Resultado profissional\n\nCurso completo por apenas R$47,00.',
+    Markup.inlineKeyboard([
+      [Markup.button.callback('💳 Pagar com Pix', 'pagar_pix')]
+    ])
+  );
+});
+
+bot.action('pagar_pix', async (ctx) => {
+  const chatId = ctx.chat.id;
+
   try {
-    await ctx.replyWithMarkdown(
-      `✨ *Bem-vindo ao Elite Creator Bot*!\n\nAqui você aprende a criar fotos impossíveis com IA – direto no seu celular, com 1 clique.\n\n\ud83d\udcf8 Curso disponível: *Clone com IA*\n\ud83d\udcb0 Investimento: R$47 (acesso vitalício)\n\nGerando chave Pix segura...`
-    );
-
-    const body = {
-      transaction_amount: 47,
-      description: 'Acesso curso Clone com IA',
-      payment_method_id: 'pix',
-      payer: {
-        email: 'comprador@comprador.com',
-        first_name: 'Elite',
-        last_name: 'Creator',
-        identification: {
-          type: 'CPF',
-          number: '12345678909',
-        },
-        address: {
-          zip_code: '06233200',
-          street_name: 'Av. das Nações Unidas',
-          street_number: '3003',
-          neighborhood: 'Bonfim',
-          city: 'São Paulo',
-          federal_unit: 'SP',
-        },
-      },
-    };
-
-    const idempotencyKey = `${chatId}-${Date.now()}`;
-
-    const { data } = await axios.post(
+    const res = await axios.post(
       'https://api.mercadopago.com/v1/payments',
-      body,
+      {
+        transaction_amount: 47,
+        payment_method_id: 'pix',
+        description: 'Curso IA - Acesso Vitalício',
+        payer: {
+          email: `${chatId}@emailfake.com`
+        }
+      },
       {
         headers: {
-          Authorization: `Bearer ${process.env.ACCESS_TOKEN_MP}`,
-          'Content-Type': 'application/json',
-          'X-Idempotency-Key': idempotencyKey,
-        },
+          Authorization: `Bearer ${process.env.ACCESS_TOKEN_MP}`
+        }
       }
     );
 
-    const chave = data.point_of_interaction.transaction_data.qr_code;
-    const idPagamento = data.id;
+    const pix = res.data.point_of_interaction.transaction_data;
 
-    usuarios.set(idPagamento, chatId);
+    await ctx.replyWithMarkdown(`📲 Copie o código Pix abaixo e pague no seu banco:
 
-    await ctx.replyWithMarkdown(
-      `🔹 *Copie o código Pix abaixo e cole no app do seu banco:*\n\n\`\`\`${chave}\`\`\`\n\n⏰ *Você tem 10 minutos para efetuar o pagamento do Pix.*`
-    );
+\`\`\`
+${pix.transaction_id}
+\`\`\`
+
+⏳ Você tem 10 minutos para pagar.
+Assim que o pagamento for confirmado, você receberá o link do curso automaticamente.`);
+
+    usuarios.set(chatId, chatId);
   } catch (err) {
-    console.error('Erro ao gerar Pix:', err?.response?.data || err);
+    console.error('Erro ao gerar Pix:', err.message);
     await ctx.reply('❌ Erro ao gerar Pix. Tente novamente mais tarde.');
   }
 });
 
 app.post('/webhook', async (req, res) => {
+  const paymentInfo = req.body.data;
+
   try {
-    const payment = req.body?.data?.id;
-    if (!payment) return res.sendStatus(200);
-
-    const { data: info } = await axios.get(
-      `https://api.mercadopago.com/v1/payments/${payment}`,
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.ACCESS_TOKEN_MP}`,
-        },
+    const response = await axios.get(`https://api.mercadopago.com/v1/payments/${paymentInfo.id}`, {
+      headers: {
+        Authorization: `Bearer ${process.env.ACCESS_TOKEN_MP}`
       }
-    );
+    });
 
-    const status = info.status;
-    const chatId = usuarios.get(payment);
+    const status = response.data.status;
+    const chatIdFake = response.data.payer.email;
+    const chatId = parseInt(chatIdFake.split('@')[0]);
 
-    if (status === 'approved' && chatId) {
+    if (status === 'approved') {
       await bot.telegram.sendMessage(
         chatId,
-        `\ud83d\ude80 Pagamento confirmado com sucesso!\n\n✨ Aqui está seu link de acesso:\nhttps://drive.google.com/drive/folders/1LK6fpV6EBlucTNDGiTi0vJDZwqHlkkP9b?usp=drive_link`
+        `✅ Pagamento confirmado!\n\n📥 Aqui está o link do seu curso:\nhttps://drive.google.com/drive/folders/1LYYBmQQS6gROjbi16v4YLPq6yTek6Le9?usp=sharing`
       );
-      usuarios.delete(payment);
+
+      usuarios.delete(chatId);
     }
 
     res.sendStatus(200);
@@ -101,7 +122,7 @@ app.post('/webhook', async (req, res) => {
   }
 });
 
-app.listen(process.env.PORT || 4000, () => {
+app.listen(process.env.PORT || 3000, () => {
   console.log('Servidor rodando...');
 });
 
