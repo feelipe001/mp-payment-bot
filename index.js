@@ -7,15 +7,12 @@ const bot = new Telegraf(process.env.BOT_TOKEN);
 const app = express();
 app.use(express.json());
 
-// Armazenar usuários temporariamente
 const usuarios = new Map();
 
-// Comando /start
 bot.start(async (ctx) => {
   try {
     await ctx.deleteMessage();
 
-    // Salva o ID do usuário no Map
     usuarios.set(ctx.from.id, ctx.chat.id);
 
     const response = await axios.post(
@@ -30,8 +27,7 @@ bot.start(async (ctx) => {
           }
         ],
         payment_methods: {
-          excluded_payment_types: [{ id: 'credit_card' }, { id: 'ticket' }],
-          default_payment_method_id: 'pix'
+          excluded_payment_types: [{ id: 'credit_card' }, { id: 'ticket' }]
         },
         back_urls: {
           success: 'https://t.me/EliteCreatorBot',
@@ -53,7 +49,16 @@ bot.start(async (ctx) => {
     const linkPagamento = response.data.init_point;
 
     await ctx.replyWithMarkdown(
-      `✅ Clique no link abaixo para pagar via *PIX*:\n\n[🔗 PAGAR AGORA](${linkPagamento})`
+      `🚀 Bem-vindo ao *Elite Creator Bot*!
+
+Aqui você aprende a criar fotos impossíveis com IA com 1 clique.
+
+📸 Curso disponível: *Clone com IA*
+💰 Investimento: R$47 (acesso vitalício)
+
+Clique abaixo para garantir seu acesso:
+
+[🔗 PAGAR AGORA](${linkPagamento})`
     );
   } catch (error) {
     console.error('Erro ao criar cobrança Pix:', error.response?.data || error.message);
@@ -61,17 +66,13 @@ bot.start(async (ctx) => {
   }
 });
 
-// Webhook do Mercado Pago
 app.post('/webhook', async (req, res) => {
   const paymentId = req.body.data?.id;
-
   if (!paymentId) return res.sendStatus(400);
 
   try {
     const paymentInfo = await axios.get(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
-      headers: {
-        Authorization: `Bearer ${process.env.ACCESS_TOKEN_MP}`
-      }
+      headers: { Authorization: `Bearer ${process.env.ACCESS_TOKEN_MP}` }
     });
 
     const status = paymentInfo.data.status;
@@ -82,9 +83,12 @@ app.post('/webhook', async (req, res) => {
       if (chatId) {
         await bot.telegram.sendMessage(
           chatId,
-          '✅ Pagamento confirmado!\n\n🔗 Aqui está seu link de acesso:\nhttps://drive.google.com/drive/folders/1LK6fpV6EBucTNbGiI10vjDZWqHlkkP9b?usp=drive_link'
+          '✅ Pagamento confirmado!
+
+🔗 Aqui está seu link de acesso:
+https://drive.google.com/drive/folders/1LK6fpV6EBucTNbGiI10vjDZWqHlkkP9b?usp=drive_link'
         );
-        usuarios.delete(telegramId); // limpa o usuário da memória
+        usuarios.delete(telegramId);
       }
     }
 
@@ -95,10 +99,8 @@ app.post('/webhook', async (req, res) => {
   }
 });
 
-// Iniciar servidor Express
 app.listen(process.env.PORT || 4000, () => {
   console.log('Servidor rodando...');
 });
 
-// Iniciar o bot
 bot.launch();
