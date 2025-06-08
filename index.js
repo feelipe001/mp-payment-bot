@@ -94,7 +94,7 @@ ${codigoPix}
 🕐 Você tem 10 minutos para pagar. O acesso será enviado automaticamente após confirmação.`,
       { parse_mode: 'Markdown' });
 
-    usuarios.set(paymentId, chatId);
+    usuarios.set(String(paymentId), chatId);
   } catch (err) {
     console.error('Erro ao gerar PIX:', err.response?.data || err.message);
     await bot.telegram.sendMessage(chatId,
@@ -116,7 +116,7 @@ app.post('/webhook', async (req, res) => {
       });
 
     const status = response.data.status;
-    const chatId = usuarios.get(paymentId);
+    const chatId = usuarios.get(String(paymentId));
 
     if (status === 'approved' && chatId) {
       await bot.telegram.sendMessage(chatId,
