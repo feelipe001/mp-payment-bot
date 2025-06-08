@@ -20,21 +20,22 @@ bot.start(async (ctx) => {
     caption:
 `🎨 *Veja a qualidade que você vai alcançar com a IA:*
 
-📱 Criar fotos impossíveis, com realismo profissional — direto do seu celular.
+📱 Criar fotos impossíveis, com realismo profissional.
 
-🔒 *Funciona para perfis, portfólios e até negócios.*
+🔒 *Ideal para perfis, carrosséis, portfólios e até negócios.*
 
-👇 Continue para descobrir como funciona...`,
+🔥 Bem-vindo ao *Elite Creator Bot*!`,
     parse_mode: 'Markdown'
   });
 
   await bot.telegram.sendMessage(chatId,
-`🔥 Bem-vindo ao *Elite Creator Bot*!
+` A partir de agora seus conteúdos estarão em outro nível!
 
-Aqui você aprende a criar *fotos impossíveis com IA*, direto no seu celular.
+Aqui você aprende a criar *fotos ultra realistas com IA*.
 
 📸 Curso disponível: *Clone com IA*  
 💰 Investimento: *R$47,00 (acesso vitalício)*
+📥 O link do curso será liberado após você clicar no botão abaixo
 
 Clique no botão abaixo para garantir seu acesso agora:`,
     {
