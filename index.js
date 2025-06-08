@@ -1,118 +1,130 @@
-require('dotenv').config();
-const { Telegraf, Markup } = require('telegraf');
 const express = require('express');
+const { Telegraf } = require('telegraf');
 const axios = require('axios');
-const fs = require('fs');
-
-const app = express();
-app.use(express.json());
+require('dotenv').config();
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
+const app = express();
+
+app.use(express.json());
+
 const usuarios = new Map();
 
 bot.start(async (ctx) => {
   const chatId = ctx.chat.id;
-  usuarios.set(chatId, chatId);
+  usuarios.set(chatId, ctx.from.id);
 
-  await ctx.replyWithPhoto(
-    { source: './imagem-ia.jpg' },
+  await bot.telegram.sendPhoto(chatId, {
+    source: 'ia_exemplo.jpg'
+  }, {
+    caption:
+`🎨 *Veja a qualidade que você vai alcançar com a IA:*
+
+📱 Criar fotos impossíveis, com realismo profissional — direto do seu celular.
+
+🔒 *Funciona para perfis, portfólios e até negócios.*
+
+👇 Continue para descobrir como funciona...`,
+    parse_mode: 'Markdown'
+  });
+
+  await bot.telegram.sendMessage(chatId,
+`🔥 Bem-vindo ao *Elite Creator Bot*!
+
+Aqui você aprende a criar *fotos impossíveis com IA*, direto no seu celular.
+
+📸 Curso disponível: *Clone com IA*  
+💰 Investimento: *R$47,00 (acesso vitalício)*
+
+Clique no botão abaixo para garantir seu acesso agora:`,
     {
-      caption:
-        'Olha essa imagem aqui 👇\nParece capa de revista, né?',
-      ...Markup.inlineKeyboard([
-        [Markup.button.callback('👉 Eu quero fazer uma assim', 'quero_fazer')]
-      ])
-    }
-  );
+      parse_mode: 'Markdown',
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: '💳 Pagar agora (Pix)', callback_data: 'pagar' }]
+        ]
+      }
+    });
 });
 
-bot.action('quero_fazer', async (ctx) => {
-  await ctx.reply(
-    'Isso foi feito com Inteligência Artificial.\nE qualquer pessoa consegue criar isso com o celular.',
-    Markup.inlineKeyboard([
-      [Markup.button.callback('👉 Me ensina agora', 'me_ensina')]
-    ])
-  );
+bot.on('callback_query', async (ctx) => {
+  const chatId = ctx.from.id;
+  const data = ctx.callbackQuery.data;
+
+  if (data === 'pagar') {
+    gerarPagamentoPix(chatId);
+  }
 });
 
-bot.action('me_ensina', async (ctx) => {
-  await ctx.reply(
-    'Eu montei um curso direto ao ponto:\nAprenda a criar imagens incríveis com IA, do zero, sem precisar saber nada de design.',
-    Markup.inlineKeyboard([
-      [Markup.button.callback('👉 Ver como funciona', 'ver_como_funciona')]
-    ])
-  );
-});
-
-bot.action('ver_como_funciona', async (ctx) => {
-  await ctx.reply(
-    '📲 Acesso imediato\n💡 Passo a passo fácil\n🔥 Resultado profissional\n\nCurso completo por apenas R$47,00.',
-    Markup.inlineKeyboard([
-      [Markup.button.callback('💳 Pagar com Pix', 'pagar_pix')]
-    ])
-  );
-});
-
-bot.action('pagar_pix', async (ctx) => {
-  const chatId = ctx.chat.id;
-
+async function gerarPagamentoPix(chatId) {
   try {
-    const res = await axios.post(
+    const response = await axios.post(
       'https://api.mercadopago.com/v1/payments',
       {
         transaction_amount: 47,
+        description: 'Curso Clone com IA',
         payment_method_id: 'pix',
-        description: 'Curso IA - Acesso Vitalício',
         payer: {
-          email: `${chatId}@emailfake.com`
+          email: `${chatId}@elitebot.com`,
+          first_name: 'Cliente',
+          last_name: 'Telegram'
         }
       },
       {
         headers: {
-          Authorization: `Bearer ${process.env.ACCESS_TOKEN_MP}`
+          Authorization: `Bearer ${process.env.ACCESS_TOKEN_MP}`,
+          'Content-Type': 'application/json',
+          'X-Idempotency-Key': `${chatId}-${Date.now()}`
         }
       }
     );
 
-    const pix = res.data.point_of_interaction.transaction_data;
+    const pixData = response.data;
+    const codigoPix = pixData.point_of_interaction.transaction_data.qr_code;
+    const paymentId = response.data.id;
 
-    await ctx.replyWithMarkdown(`📲 Copie o código Pix abaixo e pague no seu banco:
+    await bot.telegram.sendMessage(chatId,
+`🔑 Copie o código Pix abaixo e pague no app do seu banco:
 
 \`\`\`
-${pix.transaction_id}
+${codigoPix}
 \`\`\`
 
-⏳ Você tem 10 minutos para pagar.
-Assim que o pagamento for confirmado, você receberá o link do curso automaticamente.`);
+🕐 Você tem 10 minutos para pagar. O acesso será enviado automaticamente após confirmação.`,
+      { parse_mode: 'Markdown' });
 
-    usuarios.set(chatId, chatId);
+    usuarios.set(paymentId, chatId);
   } catch (err) {
-    console.error('Erro ao gerar Pix:', err.message);
-    await ctx.reply('❌ Erro ao gerar Pix. Tente novamente mais tarde.');
+    console.error('Erro ao gerar PIX:', err.response?.data || err.message);
+    await bot.telegram.sendMessage(chatId,
+      '❌ Erro ao gerar Pix. Tente novamente mais tarde.');
   }
-});
+}
 
 app.post('/webhook', async (req, res) => {
-  const paymentInfo = req.body.data;
-
   try {
-    const response = await axios.get(`https://api.mercadopago.com/v1/payments/${paymentInfo.id}`, {
-      headers: {
-        Authorization: `Bearer ${process.env.ACCESS_TOKEN_MP}`
-      }
-    });
+    const paymentId = req.body?.data?.id;
+
+    if (!paymentId) return res.sendStatus(200);
+
+    const response = await axios.get(`https://api.mercadopago.com/v1/payments/${paymentId}`,
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.ACCESS_TOKEN_MP}`
+        }
+      });
 
     const status = response.data.status;
-    const chatIdFake = response.data.payer.email;
-    const chatId = parseInt(chatIdFake.split('@')[0]);
+    const chatId = usuarios.get(paymentId);
 
-    if (status === 'approved') {
-      await bot.telegram.sendMessage(
-        chatId,
-        `✅ Pagamento confirmado!\n\n📥 Aqui está o link do seu curso:\nhttps://drive.google.com/drive/folders/1LYYBmQQS6gROjbi16v4YLPq6yTek6Le9?usp=sharing`
-      );
+    if (status === 'approved' && chatId) {
+      await bot.telegram.sendMessage(chatId,
+`✅ Pagamento confirmado!
 
-      usuarios.delete(chatId);
+🔓 Acesse agora o seu curso:
+https://drive.google.com/drive/folders/1LYYBmQQS6gROjbi16v4YLPq6yTek6Le9?usp=sharing`);
+
+      usuarios.delete(paymentId);
     }
 
     res.sendStatus(200);
@@ -122,7 +134,7 @@ app.post('/webhook', async (req, res) => {
   }
 });
 
-app.listen(process.env.PORT || 3000, () => {
+app.listen(process.env.PORT || 4000, () => {
   console.log('Servidor rodando...');
 });
 
