@@ -12,7 +12,7 @@ const usuarios = new Map();
 
 bot.start(async (ctx) => {
   const chatId = ctx.chat.id;
-  usuarios.set(chatId, ctx.from.id);
+  usuarios.set(String(chatId), String(chatId));
 
   await bot.telegram.sendPhoto(chatId, {
     source: 'ia_exemplo.jpg'
@@ -82,19 +82,20 @@ async function gerarPagamentoPix(chatId) {
 
     const pixData = response.data;
     const codigoPix = pixData.point_of_interaction.transaction_data.qr_code;
-    const paymentId = response.data.id;
+    const paymentId = String(response.data.id);
 
     await bot.telegram.sendMessage(chatId,
 `🔑 Copie o código Pix abaixo e pague no app do seu banco:
 
-\`\`\`
+\
+\\`
 ${codigoPix}
-\`\`\`
+\\`
 
 🕐 Você tem 10 minutos para pagar. O acesso será enviado automaticamente após confirmação.`,
-      { parse_mode: 'Markdown' });
+      { parse_mode: 'MarkdownV2' });
 
-    usuarios.set(String(paymentId), chatId);
+    usuarios.set(paymentId, String(chatId));
   } catch (err) {
     console.error('Erro ao gerar PIX:', err.response?.data || err.message);
     await bot.telegram.sendMessage(chatId,
@@ -104,7 +105,7 @@ ${codigoPix}
 
 app.post('/webhook', async (req, res) => {
   try {
-    const paymentId = req.body?.data?.id;
+    const paymentId = String(req.body?.data?.id);
 
     if (!paymentId) return res.sendStatus(200);
 
@@ -116,7 +117,7 @@ app.post('/webhook', async (req, res) => {
       });
 
     const status = response.data.status;
-    const chatId = usuarios.get(String(paymentId));
+    const chatId = usuarios.get(paymentId);
 
     if (status === 'approved' && chatId) {
       await bot.telegram.sendMessage(chatId,
