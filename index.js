@@ -81,13 +81,10 @@ app.post('/webhook', async (req, res) => {
     if (status === 'approved' && telegramId) {
       const chatId = usuarios.get(parseInt(telegramId));
       if (chatId) {
-        await bot.telegram.sendMessage(
-          chatId,
-          '✅ Pagamento confirmado!
-
-🔗 Aqui está seu link de acesso:
-https://drive.google.com/drive/folders/1LK6fpV6EBucTNbGiI10vjDZWqHlkkP9b?usp=drive_link'
-        );
+       await bot.telegram.sendMessage(
+  chatId,
+  "✅ Pagamento confirmado!\n\n📁 Aqui está seu link de acesso:\nhttps://drive.google.com/drive/folders/1LK6fpV6EBucTNbGiTi0vJDZwqHlkkP9b?usp=drive_link"
+);
         usuarios.delete(telegramId);
       }
     }
