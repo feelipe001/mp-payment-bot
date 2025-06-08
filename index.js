@@ -29,7 +29,7 @@ bot.start(async (ctx) => {
   });
 
   await bot.telegram.sendMessage(chatId,
-` A partir de agora seus conteúdos estarão em outro nível!
+`De agora em diante, seus conteúdos nunca mais serão os mesmos!
 
 Aqui você aprende a criar *fotos ultra realistas com IA*.
 
