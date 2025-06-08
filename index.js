@@ -11,8 +11,8 @@ app.use(express.json());
 const usuarios = new Map();
 
 bot.start(async (ctx) => {
-  const chatId = ctx.chat.id;
-  usuarios.set(String(chatId), String(chatId));
+  const chatId = String(ctx.chat.id);
+  usuarios.set(chatId, chatId);
 
   await bot.telegram.sendPhoto(chatId, {
     source: 'ia_exemplo.jpg'
@@ -49,12 +49,14 @@ Clique no botão abaixo para garantir seu acesso agora:`,
 });
 
 bot.on('callback_query', async (ctx) => {
-  const chatId = ctx.from.id;
+  const chatId = String(ctx.from.id);
   const data = ctx.callbackQuery.data;
 
   if (data === 'pagar') {
-    gerarPagamentoPix(chatId);
+    await gerarPagamentoPix(chatId);
   }
+
+  await ctx.answerCbQuery(); // <- evitar loop de clique ou mensagens duplicadas
 });
 
 async function gerarPagamentoPix(chatId) {
@@ -84,6 +86,8 @@ async function gerarPagamentoPix(chatId) {
     const codigoPix = pixData.point_of_interaction.transaction_data.qr_code;
     const paymentId = String(response.data.id);
 
+    usuarios.set(paymentId, chatId);
+
     await bot.telegram.sendMessage(chatId,
 `🔑 Copie o código Pix abaixo e pague no app do seu banco:
 
@@ -92,9 +96,8 @@ ${codigoPix}
 \`\`\`
 
 🕐 Você tem 10 minutos para pagar. O acesso será enviado automaticamente após confirmação.`,
-{ parse_mode: 'Markdown' });
+      { parse_mode: 'Markdown' });
 
-    usuarios.set(paymentId, String(chatId));
   } catch (err) {
     console.error('Erro ao gerar PIX:', err.response?.data || err.message);
     await bot.telegram.sendMessage(chatId,
@@ -105,15 +108,13 @@ ${codigoPix}
 app.post('/webhook', async (req, res) => {
   try {
     const paymentId = String(req.body?.data?.id);
-
     if (!paymentId) return res.sendStatus(200);
 
-    const response = await axios.get(`https://api.mercadopago.com/v1/payments/${paymentId}`,
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.ACCESS_TOKEN_MP}`
-        }
-      });
+    const response = await axios.get(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+      headers: {
+        Authorization: `Bearer ${process.env.ACCESS_TOKEN_MP}`
+      }
+    });
 
     const status = response.data.status;
     const chatId = usuarios.get(paymentId);
